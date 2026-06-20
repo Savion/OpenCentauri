@@ -41,6 +41,7 @@ nav:
     - CC2:
       - Hardware: hardware/CC2/index.md
       - Mainboard: hardware/CC2/mainboard.md
+      - FEL & UART / eMMC Backup: hardware/CC2/fel-uart-setup.md
       - Toolhead: hardware/CC2/toolhead.md
       - Screen: hardware/CC2/screen.md
       - Miscellaneous: hardware/CC2/misc.md
