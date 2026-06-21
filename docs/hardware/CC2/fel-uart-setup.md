@@ -96,5 +96,4 @@ For driver installation and the FEL software workflow (`sunxi-fel` / `xfel`, loa
 ## Related Documentation
 
 - [CC2 Mainboard Pinout](mainboard.md) — 24V input, UART0/DSP, and FEL header pin details
-- [FEL Mode](../../software/FEL-mode.md) — booting into FEL mode and installing drivers
 - [CC2 eMMC Backup / Restore](https://github.com/OpenCentauri/cc-fw-tools/blob/main/docs/EMMC_BACKUP_RESTORE_CC2.md) — full step-by-step backup and restore procedure (cc-fw-tools)
