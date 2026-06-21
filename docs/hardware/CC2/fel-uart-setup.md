@@ -91,7 +91,7 @@ The CC2 has **no R53 resistor to short** (unlike the CC1) — FEL is entered wit
 
 Your PC should enumerate the FEL device (USB ID `1F3A` `EFE8`). On Windows you'll need to install the WinUSB driver.
 
-For driver installation and the FEL software workflow (`sunxi-fel` / `xfel`, loading u-Boot), see the [FEL mode software guide](../../software/FEL-mode.md).
+For installing the WinUSB driver and the `sunxi-fel` tool, see [§2 — Install tools](https://github.com/OpenCentauri/cc-fw-tools/blob/main/docs/EMMC_BACKUP_RESTORE_CC2.md#2-install-tools) in the CC2 eMMC backup/restore guide.
 
 ## Related Documentation
 
