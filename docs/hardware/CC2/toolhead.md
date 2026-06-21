@@ -22,7 +22,7 @@ The Toolhead board has a 2x4 pin port at the bottom. This connector links to a s
 
 
 
-The CC2 has an additional filament detector board connected to the bottom port on the opposite side of the supplementary board pins. It uses an optical sensor to detect filament entry into the extruder. A spring on the back of the board retains a lever that blocks the optical sensor when filament enters the extruder. A redesigned front and rear extruder shell accommodate both this detector board and the filament [multiplexer](CANVAS.md#filament-multiplexer).
+The CC2 has an additional filament detector board connected to the bottom port on the opposite side of the supplementary board pins. It uses an optical sensor to detect filament entry into the extruder. A spring on the back of the board retains a lever that blocks the optical sensor when filament enters the extruder. A redesigned front and rear extruder shell accommodate both this detector board and the filament [multiplexer](../CANVAS/CANVAS_components.md#filament-multiplexer).
 
 This board also includes forward- and rear-facing Hall effect sensors. The forward sensor, located near the middle of the board, detects the toolhead cover using a small magnet in the CC2 toolhead. The rear sensor, located near the top-back side of the board and extending over the multiplexer, is used for tangle detection. A spring-loaded tab in the multiplexer extends under filament tension and triggers this sensor once tension exceeds a threshold.
 
@@ -59,12 +59,12 @@ Filament cutter magnet location highlighted in red
 
 Metric|Value
 ---|---
-MCU|
-Vendor Id|
-Product Id|
-Device BCD|
-Product|
-Manufacturer|
+MCU|Unknown
+Vendor Id|Unknown
+Product Id|Unknown
+Device BCD|Unknown
+Product|Unknown
+Manufacturer|Unknown
 Stepper driver|tmc2209
 
 ## Hardware
@@ -80,8 +80,8 @@ Extruder hobbed gear material|SDK11 tool steel
 Heater type|Ceramic plate-type PTC heater
 Heater resistance|~9.6Ω
 Heater power|60W
-Thermistor Type| Glass bead NTC-150k*
-Thermistor Beta| 4300
+Thermistor Type| Glass bead NTC-200k*
+Thermistor Beta| Unknown, likely 3950 or 4300
 Fan manufacturer| Shenzhen Hua Xinrong Plastic Electronics Co., Ltd
 Part cooling fan type|5020 custom radial fan integrated into duct, 4 pin (tach+5V PWM)
 Part cooling fan P/N|EFC-05D24D

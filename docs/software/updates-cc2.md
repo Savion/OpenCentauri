@@ -34,9 +34,39 @@ The Centauri Carbon 2 employs an A/B partition scheme managed by `swupdate`. Upd
 
 ## Firmware update archive
 
+### v02.00.02.00 (Released 28/05/2026)
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-02.00.02.00-a3a76f4eb7036027e0927d7f9184a092-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+
+??? warning "SSH disabled"
+    This release removes the SSH process entirely, making it more difficult to perform research on a live device.
+
+??? warning "Downgrades disabled"
+    This release prevents downgrades to any version before this release. If you'd like to downgrade anyway, use the repacked version of v01.03.02.51 below. Use at your own risk.
+
+    [Download repacked v01.03.02.51](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2_eeb001_02.00.00.00_from51.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+
+Changelog:
+
+1. Implemented several UI adjustments.
+1. Added weak network reminder for Wi-Fi connections.
+1. Fixed occasional Error 803 triggered by heating commands.
+1. Fixed the occasional mismatch between timelapse video filenames and print file 
+1. filenames during export.
+1. Fixed the issue where resume printing failed after power loss when using an external spool under certain conditions.
+
+### v01.03.02.51 (Released 09/05/2026)
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.02.51-2ab3ffd72854dfd40af180c57fb9bb31-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+
+Changelog:
+
+1. Added the ability to exclude and reset regions containing foreign objects.
+1. Enhanced handling of LAN file upload errors.
+1. Fixed display issues in UI.
+1. Fixed an issue where a 1252 error would cause pop-up dialogs to get stuck, even when the system was idle.
+1. Fixed a bug where print history showed a total print time of 0 after resuming printing following a power outage.
+
 ### v01.03.02.36 (Released 09/04/2026)
-[Download Global (abroad)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.02.36-ee76546c665bb272b43798813f60f8dd-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
-[Download China (homeland)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.02.36-ee76546c665bb272b43798813f60f8dd-release-homeland.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.02.36-ee76546c665bb272b43798813f60f8dd-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
 
 Changelog:
 
@@ -49,8 +79,7 @@ Changelog:
 1. Resolved intermittent "Printer Busy" issue after file upload.
 
 ### v01.03.01.89 (Released 09/01/2026)
-[Download Global (abroad)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.01.89-18d82e89afe354a5801102751e838fcb-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
-[Download China (homeland)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.01.89-18d82e89afe354a5801102751e838fcb-release-homeland.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.03.01.89-18d82e89afe354a5801102751e838fcb-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
 
 Changelog:
 
@@ -63,8 +92,7 @@ Changelog:
 7. Fixed occasional WiFi disconnection
 
 ### v01.01.16.64 (Released 11/12/2025)
-[Download Global (abroad)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.64-0e8e05b1a71e193e1cf428db7280c664-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
-[Download China (homeland)](https://github.com/suchmememanyskill/cc2-firmwares/blob/main/cc2-01.01.16.64-0e8e05b1a71e193e1cf428db7280c664-release-homeland.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.64-0e8e05b1a71e193e1cf428db7280c664-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
 
 Changelog:
 
@@ -78,8 +106,7 @@ Changelog:
 8. Improved the stability of connection with slicing soft
 
 ### v01.01.16.40 (Released 17/11/2025)
-[Download Global (abroad)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.40-3b88c664cbd7e5a29bcd44868321971d-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
-[Download China (homeland)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.40-3b88c664cbd7e5a29bcd44868321971d-release-homeland.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.40-3b88c664cbd7e5a29bcd44868321971d-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
 
 Changelog:
 
@@ -92,5 +119,4 @@ Changelog:
 7. Added multi-language display support
 
 ### v01.01.16.21 (Released 31/10/2025)
-[Download Global (abroad)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.21-a20c212081d7287869bf094cb1522106-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
-[Download China (homeland)](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.21-a20c212081d7287869bf094cb1522106-release-homeland.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
+[Download](https://github.com/suchmememanyskill/cc2-firmwares/raw/refs/heads/main/cc2-01.01.16.21-a20c212081d7287869bf094cb1522106-release-abroad.zip.sig){  referrerpolicy="no-referrer" .md-button .md-button--primary }
