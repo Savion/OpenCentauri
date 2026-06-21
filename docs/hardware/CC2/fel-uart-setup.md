@@ -1,536 +1,100 @@
-# CC2 — eMMC Backup / Restore over USB (FEL Mode)
-
-Make a 1:1 image of the Centauri Carbon 2's eMMC and write it back, using `sunxi-fel` + U-Boot
-over the board's FEL USB header. Works on Windows, Linux, and macOS.
-
-!!! danger "Hardware"
-    Use **J6** for FEL. The board's external "USB-C-shaped" connector is actually a 2-pin power
-    terminal, **not** USB — don't plug a USB cable into it.
-
-!!! warning "Data"
-    Don't interrupt a write. Verify every backup before relying on it.
-
-!!! info "Looking for the CC1 procedure?"
-    The Centauri Carbon 1 uses the same R528/T113 SoC but a different board layout. See the
-    [FEL & UART Bench Setup](../CC1/fel-uart-setup.md) and the
-    [FEL mode software guide](../../software/FEL-mode.md), which now includes the Windows
-    `diskcpy` readback method too.
-
----
-
-## 1. What you need
-
-### Hardware
-
-- The **CC2 printer**, powered off and unplugged from mains.
-- A **PC** with at least one free USB-A port (Windows 10/11, Linux, or macOS).
-- A **USB-A male-to-dupont female cable** (4 wires + USB-A plug). This is the FEL data link from
-  your PC to the printer's J6 header. Sold pre-assembled as "USB to dupont," "USB to 4-pin," or
-  "Raspberry Pi USB power cable" — or solder one yourself from a sacrificial USB cable and a
-  4-pin dupont housing.
-- A **3.3 V USB-UART adapter** (FTDI FT232, CP2102, CH340 — anything 3.3 V logic) wired to J20.
-  This gives you the serial console where U-Boot runs. You'll see SoC boot messages here and
-  you'll be typing your `usb reset` / `fatload` / `source` commands into this terminal —
-  **UART is required** for this tutorial, not optional.
-- **Two USB flash drives** with different roles:
-    - **Stick A — "scripts stick":** FAT32 formatted, ≥ 64 MB. Holds only `backup_cc2.scr` /
-      `restore_cc2.scr` (a few KB each). Anything pre-existing on it can stay.
-    - **Stick B — "image stick":** ≥ 8 GB. Will hold the **raw eMMC image** written as a
-      block-level dump — no filesystem. Whatever's on it now gets wiped, so use a stick you're
-      willing to dedicate.
-
-### Software
-
-- `sunxi-fel` (install in §2).
-- **Balena Etcher** — used for **restore (§8 only)** to write the `backup.bin` onto a USB stick.
-  *Not* used for backup readback: Etcher's "Clone drive" feature copies one physical drive to
-  another physical drive — it cannot save a drive to an image file. If the current release
-  errors when flashing, fall back to
-  [**v1.18.11**](https://github.com/balena-io/etcher/releases/tag/v1.18.11).
-- **[`diskcpy.exe`](https://github.com/suchmememanyskill/diskcpy/releases)** (Windows only, for
-  §6 backup readback) — small standalone Rust utility that dumps a raw physical drive to a file.
-  Replaces the WSL2/usbipd/dd dance.
-- (Windows only) **[Zadig](https://zadig.akeo.ie/)** — installs the WinUSB driver Windows needs
-  to talk to the FEL device.
-
-### Files
+# CC2 FEL & UART Bench Setup
 
-!!! note "CC2-specific files"
-    On the CC2 the eMMC is on **`mmc dev 1`** (it's `mmc dev 0` on the CC1), and it's slightly
-    larger — the CC2 scripts clone `target_limit 0xE9A000` = **15,307,776 sectors =
-    7,837,581,312 bytes**. So `backup_cc2.scr` / `restore_cc2.scr` are built for `mmc dev 1` and
-    the CC2 sector count, and are paired with the CC2 U-Boot build `u-boot-sunxi-with-spl-cc2.bin`.
-    **Don't run the CC1 scripts on a CC2, or these on a CC1.** Only
-    `uart0-helloworld-sdboot.sunxi` is shared between the two boards.
+This guide describes how to set up a Centauri Carbon 2 mainboard on a bench for FEL access/eMMC recovery and UART access to u-Boot and Linux.
 
-Drop these next to `sunxi-fel.exe`:
+!!! info
+    This setup is useful for:
 
-- [`uart0-helloworld-sdboot.sunxi`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/uart0-helloworld-sdboot.sunxi)
-  — generic; same file the CC1 uses.
-- [`u-boot-sunxi-with-spl-cc2.bin`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/u-boot-sunxi-with-spl-cc2.bin) — **CC2 only**.
+    - Accessing FEL mode for eMMC recovery
+    - Serial console access to u-Boot and Linux
+    - Advanced debugging and development work
 
-Drop these on **Stick A**:
+!!! note "Differences from the CC1"
+    The CC2 uses the same Allwinner R528/T113 SoC as the CC1, so the wiring and FEL/UART workflow are nearly identical. Two hardware differences matter:
 
-- [`backup_cc2.scr`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/backup_cc2.scr) — **CC2 only** backup script.
-- [`restore_cc2.scr`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/restore_cc2.scr) — **CC2 only** restore script.
+    - **No usable USB-C port.** The CC1's USB-C FEL options (modified cable / power blocker) don't exist here — the CC2's external "USB-C-shaped" connector is a **2-pin 24V power terminal, not USB**. On the CC2 you reach the FEL USB lines through the **FEL header (J6)** instead.
+    - **No R53 resistor to short.** You enter FEL with the onboard **buttons** (SW1/SW2), not by shorting a resistor.
 
-### Headers on the mainboard
+## Hardware Requirements
 
-| Header | Use for | Pinout |
-|---|---|---|
-| **J6** (next to SW2) | FEL USB | Pin 1 (closest to eMMC) = GND / D+ / D− / VCC. **D+ and D− are swapped vs USB-A** — see §3. |
-| **J20** (left 1×4 near SW1) | UART console | VCC / TX / RX / GND. **Don't connect VCC.** |
+You will need the following components:
 
-![J6 FEL USB header, next to SW2](assets/J6_header.jpg){ width="520" }
-/// caption
-J6 — the FEL USB header (next to SW2). Pin 1 is closest to the eMMC.
-///
+- **24V Power Supply**
+- **3.3V USB Serial UART Dongle** (e.g., [Amazon Link](https://amzn.to/3La06pv))
+    - *Alternative:* A Raspberry Pi or ESP32 acting as a serial interface
+- **FEL USB Connection** — a **USB-A male to dupont female cable** wired to the board's **FEL header (J6)**. Unlike the CC1 there is no USB-C port to use, so this header is the only FEL entry point. (Sold pre-assembled as "USB to dupont" / "USB to 4-pin," or solder one from a sacrificial USB-A cable.)
+- **Dupont Jumper Cables** ([Link 1](https://amzn.to/44RJQAe), [Link 2](https://amzn.to/3NsB5GE))
 
-![J20 UART console header](assets/UART_headers.jpg){ width="520" }
-/// caption
-J20 — the UART console header (1×4, near SW1).
-///
+## Critical Warnings
 
----
+!!! danger "VOLTAGE DANGER"
+    The CC2's external **USB-C-shaped connector is a 2-pin 24V power terminal, not USB.** Do **not** plug a USB device into it — you will destroy whatever you connect. Use the **FEL header (J6)** for the USB/FEL connection.
 
-## 2. Install tools
+!!! warning "Safety Precautions"
+    - **Ground Continuity:** Ensure continuity of Ground between all peripherals
+    - **Loose Wires:** If a 24V power/ground wire comes loose, it can cause power to flow across the UART, which **will destroy one or more board chips**
+    - **Power Sequencing:** **Do not** plug or unplug components (even the USB) while anything is powered up. Insert the USB and USB-UART connections while the board is **powered down**
 
-### Windows
+## Step-by-Step Hookup
 
-1. Make a working folder: `mkdir C:\Tools\fel`.
-2. Download [`sunxi-fel.exe`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/sunxi-fel.exe)
-   (BigTreeTech build, in the cc-fw-tools repo) and drop it in `C:\Tools\fel\`.
-3. Download **Zadig** from [zadig.akeo.ie](https://zadig.akeo.ie/) and drop the `.exe` in the
-   same folder (or anywhere — it's portable).
-4. Drop the files from §1 ("Files") into `C:\Tools\fel\`.
-5. Enter FEL mode (§4). Run **Zadig** → Options → List All Devices → select `1F3A EFE8` →
-   driver **WinUSB** → **Replace Driver**.
+!!! important
+    Complete all steps with the power supply **disconnected**. Only apply power after all connections are securely in place.
 
-!!! note
-    Commands below are written without a prefix. On Windows, use `.\sunxi-fel.exe ...` from the
-    install folder.
+### 1. Power Connection
 
-### Linux
+Connect the **24V VCC** and **Ground** wires to your external power supply.
 
-```bash
-sudo apt install -y sunxi-tools                 # Debian / Ubuntu
-# or: sudo dnf install -y sunxi-tools           # Fedora
-# or: sudo pacman -S --needed sunxi-tools       # Arch
-sudo tee /etc/udev/rules.d/77-fel.rules > /dev/null <<'EOF'
-SUBSYSTEM=="usb", ATTR{idVendor}=="1f3a", ATTR{idProduct}=="efe8", MODE="0666"
-EOF
-sudo udevadm control --reload-rules
-```
+See the **24V Input** tab on the [mainboard pinout](mainboard.md) page for the exact pin locations.
 
-### macOS
+### 2. UART Connection
 
-```bash
-brew install sunxi-tools
-```
+Connect the **3.3V Serial UART Tx, Rx, and Ground** between the CC2 **UART0** header and your serial interface (USB dongle, Pi, etc.).
 
----
+**Pin Connections:**
 
-## 3. Wire J6 to USB-A
+- TX (Transmit from board) → RX on your serial adapter
+- RX (Receive to board) → TX on your serial adapter
+- GND → GND
 
-Printer powered off, unplugged.
+!!! important
+    Do not connect the VCC (5V) pin on the UART header.
 
-| J6 (CC2)            | USB-A pin    | Wire (typical) |
-|---------------------|--------------|----------------|
-| 1 (closest to eMMC) | 4 (GND)      | black          |
-| 2                   | 3 (D+)       | green          |
-| 3                   | 2 (D−)       | white          |
-| 4 (farthest)        | 1 (VBUS)     | red            |
+UART0 is the **lower** 4-pin row of the 2×4 UART0/DSP header (the upper row is the DSP console). See the **UART0/DSP** tab on the [mainboard pinout](mainboard.md) page for the exact pin locations.
 
-!!! warning "Don't build a straight-through cable"
-    J6 has D+ and D− swapped vs USB-A. Follow the table above.
+![CC2 UART headers](assets/UART_headers.jpg){ width="500" }
 
-Plug the USB-A into your PC. Don't power the printer on yet.
+### 3. FEL / USB Connection
 
----
+The CC2 has no USB-C port for FEL — connect through the **FEL header (J6)** using a **USB-A male to dupont female cable**.
 
-## 4. Enter FEL mode
+Wire the FEL header to the USB-A plug as follows:
 
-1. Plug mains into the printer.
-2. **Press and hold SW2.** While holding, **press and release SW1.** Keep SW2 held ~2 s after,
-   then release.
+| FEL header (J6) | Marking | USB-A pin | Wire (typical) |
+|---|---|---|---|
+| 1 (closest to eMMC) | GND | 4 (GND) | black |
+| 2 | DP | 3 (D+) | green |
+| 3 | DM | 2 (D−) | white |
+| 4 (farthest) | 5V | 1 (VBUS / +5V) | red |
 
-The PC dings; the printer screen stays black.
+!!! warning
+    **DP and DM are swapped compared to a standard USB-A pinout.** Don't build a straight-through cable — follow the table above. See the **FEL** tab on the [mainboard pinout](mainboard.md) page.
 
----
+![CC2 FEL header (J6)](assets/J6_header.jpg){ width="500" }
 
-## 5. Boot U-Boot
+### 4. Entering FEL Mode
 
-You'll use **two windows** for this section:
+The CC2 has **no R53 resistor to short** (unlike the CC1) — FEL is entered with the onboard buttons:
 
-- A **serial terminal** connected to the printer's UART — so you can see the SoC boot, and so
-  you can type U-Boot commands in §6 onward.
-- A **regular PC shell** (PowerShell, cmd, or bash) — so you can run `sunxi-fel` commands.
+1. With the USB and UART connected and the board powered, **press and hold SW2** (the FEL/boot button, next to J6).
+2. While holding SW2, **press and release SW1** (reset, next to the UART0 header).
+3. Keep SW2 held ~2 seconds, then release.
 
-Open both before running anything below. They're independent; the printer doesn't mind having
-UART and FEL connected at the same time.
+Your PC should enumerate the FEL device (USB ID `1F3A` `EFE8`). On Windows you'll need to install the WinUSB driver.
 
-### 5.1 Open the UART terminal
+For driver installation and the FEL software workflow (`sunxi-fel` / `xfel`, loading u-Boot), see the [FEL mode software guide](../../software/FEL-mode.md).
 
-1. In **Device Manager → Ports (COM & LPT)**, find your USB-UART adapter and note the COM number
-   (e.g. `COM5`).
-2. Open **PuTTY** (or any serial terminal — `minicom`, `screen`, `tio`, Arduino Serial Monitor):
-    - **Connection type:** Serial
-    - **Serial line:** `COM5` (your number)
-    - **Speed:** `115200`
-    - Defaults under **Connection → Serial** are correct: 8 data bits, no parity, 1 stop bit, no
-      flow control. Often written as **115200 8N1**.
-3. Click **Open**. You should get a blank terminal window. Leave it open.
+## Related Documentation
 
-### 5.2 Open the PC shell in the sunxi-fel folder
-
-- **Windows:** open PowerShell or cmd, `cd C:\Tools\fel` (or wherever you unzipped).
-- **Linux / macOS:** open a terminal, `cd` into the folder.
-
-### 5.3 Send hello-world (UART init)
-
-In the PC shell:
-
-```
-sunxi-fel spl uart0-helloworld-sdboot.sunxi
-```
-
-In your serial window you should see:
-
-```
-Hello from Allwinner R528/T113!
-Returning back to FEL.
-```
-
-If you don't see those lines, your UART wiring is wrong — fix it before going further (see §9).
-
-### 5.4 Load U-Boot
-
-In the PC shell:
-
-```
-sunxi-fel uboot u-boot-sunxi-with-spl-cc2.bin
-```
-
-In your serial window the SPL banner scrolls past (DRAM init, board info), then U-Boot itself
-starts, and you land at:
-
-```
-=>
-```
-
-That `=>` is the U-Boot prompt. No key-press needed — the build skips autoboot
-(`CONFIG_BOOTDELAY=-1`). Everything in §6 (backup) and §8 (restore) is typed into the serial
-window at this prompt.
-
----
-
-## 6. Back up the eMMC
-
-### (Recommended) Grab `ELEGOO.txt` over SSH first
-
-If your printer is still booting normally and you have SSH access, copy `/mnt/private/ELEGOO.txt`
-off the printer **before** anything else. That file holds your `SN,short_code,long_key` triplet
-— the one piece of the eMMC that's irreplaceable if you ever need to rewrite the SN on a restored
-image (§8A).
-
-Windows 10/11 ships with OpenSSH, so `scp` works in PowerShell:
-
-```powershell
-mkdir C:\OpenCentauri\backups -Force
-scp root@<printer-ip>:/mnt/private/ELEGOO.txt C:\OpenCentauri\backups\ELEGOO.txt
-type C:\OpenCentauri\backups\ELEGOO.txt   # sanity check — single line "F01...,xxxxxxxx,xxxxxxxx..."
-```
-
-(On Linux/macOS, same `scp` command using `mkdir -p ~/OpenCentauri/backups` and a Unix
-destination path.)
-
-This 60-byte file is now safely on your PC regardless of whatever happens to the eMMC. Skipping
-this step is fine if you only ever plan to restore your own backup back to the same printer.
-
-### Swap-stick dance
-
-You'll swap two USB sticks during this section. Have both next to the printer:
-
-- **Stick A:** FAT32 with `backup_cc2.scr` on the root.
-- **Stick B:** ≥ 8 GB, empty.
-
-At the `=>` prompt with **Stick A** plugged into the printer's front USB:
-
-```
-usb reset
-usb dev 0
-fatload usb 0:1 42000000 backup_cc2.scr
-```
-
-!!! tip "When is `usb reset` needed?"
-    Only if you plug the stick in *after* U-Boot's USB scan. If Stick A was already plugged in
-    when U-Boot booted and you saw "1 Storage Device(s) found" in the banner, skip `usb reset`
-    and go straight to `usb dev 0`. If `usb reset` doesn't find a storage device, **unplug the
-    stick, plug it back in, run `usb reset` again** — repeat until a storage device is reported.
-
-Pull **Stick A**, plug in **Stick B**:
-
-```
-usb reset
-usb dev 0
-source 42000000
-```
-
-Wait 15–30 min. Don't interrupt. When `=>` returns, the image is on Stick B.
-
-### Copy the image off Stick B
-
-Stick B contains a raw eMMC image. **Balena Etcher cannot read it into a file** — its only output
-mode is "flash to drive," and its "Clone drive" feature does drive-to-drive copies, not
-drive-to-image-file exports. Use `dd` (Linux/macOS) or `diskcpy.exe` (Windows) instead.
-
-Plug Stick B into your PC. **Click Cancel** on any "format this drive" prompt.
-
-#### Linux / macOS
-
-```bash
-mkdir -p ~/OpenCentauri/backups && cd ~/OpenCentauri/backups
-lsblk                                                # Linux: find e.g. /dev/sdg
-diskutil list                                        # macOS: find e.g. /dev/disk4
-sudo dd if=/dev/sdX of=backup.bin bs=4M status=progress conv=fsync
-truncate -s 7837581312 backup.bin                    # trim to exact eMMC size
-```
-
-#### Windows (diskcpy)
-
-Use `diskcpy.exe` — a small standalone utility that does a raw block-level read of a physical
-drive into a file.
-
-**One-time setup:**
-
-1. Download `diskcpy.exe` from
-   [github.com/suchmememanyskill/diskcpy/releases](https://github.com/suchmememanyskill/diskcpy/releases)
-   and drop it somewhere convenient (e.g. `C:\Tools\diskcpy\`).
-2. Create a folder for your backups:
-
-    ```powershell
-    mkdir C:\OpenCentauri\backups
-    ```
-
-**Each backup readback:**
-
-1. Plug Stick B into your PC. **Click Cancel** on any "format this drive" prompt.
-2. In **PowerShell**, list physical drives to find the stick's `\\.\PHYSICALDRIVE#`:
-
-    ```powershell
-    Get-CimInstance Win32_DiskDrive | Select-Object DeviceID, Model, Size
-    ```
-
-    Sample output:
-
-    ```
-    DeviceID            Model                Size
-    --------            -----                ----
-    \\.\PHYSICALDRIVE0  Samsung SSD 980      1000204886016
-    \\.\PHYSICALDRIVE4  USB Mass Storage     8053063680
-    ```
-
-    Identify your stick by `Size` (~8 GB = 8,053,063,680 bytes, ~16 GB = 16,109,371,392 bytes,
-    etc.). **Double-check before continuing — picking the wrong DeviceID will read from the wrong
-    drive.**
-3. Run `diskcpy.exe` with the source `\\.\PHYSICALDRIVE#` and the output file:
-
-    ```powershell
-    cd C:\OpenCentauri\backups
-    C:\Tools\diskcpy\diskcpy.exe \\.\PHYSICALDRIVE4 .\backup.bin
-    ```
-
-    You'll see a live progress line like `182.00 MB/7.50 GB 2.4%`. Wait for it to finish.
-4. **Truncate** the file to the eMMC's exact size — otherwise the trailing bytes outside the
-   image confuse the GPT lookup in §7. Run as a single line in PowerShell:
-
-    ```powershell
-    $f=[IO.File]::Open("C:\OpenCentauri\backups\backup.bin",'Open','ReadWrite'); $f.SetLength(7837581312); $f.Close()
-    ```
-
-    *(If you paste a multi-line version, PowerShell interprets it as one expression and errors
-    with `Unexpected token '$f'`. Keep it on one line with `;` between statements.)*
-
-!!! tip
-    Name your backup with version and SN, e.g.
-    `C:\OpenCentauri\backups\cc2-01.03.02.51-F01XXXXXXXXXXXXXX.bin`.
-
----
-
-## 7. Verify the backup
-
-### Size
-
-```bash
-# Linux / macOS / WSL
-ls -l /mnt/c/OpenCentauri/backups/backup.bin
-```
-
-```powershell
-# Windows PowerShell
-Get-Item C:\OpenCentauri\backups\backup.bin | Select Length
-```
-
-Expect exactly **7,837,581,312 bytes**. Anything else = re-do §6.
-
-### Firmware version + SN
-
-You're looking for two things inside the `.bin`:
-
-- `/opt/inst/firmware_version/versions.json` on **rootfsA (partition 7)** — gives you
-  `ota_version`.
-- `/ELEGOO.txt` on **partition 11 (FAT16)** — single line: `<SN>,<short>,<long>`.
-
-#### Linux / macOS / WSL (recommended on Windows)
-
-If you're on Windows and don't have Ubuntu in WSL yet, install it once:
-
-```powershell
-wsl --install -d Ubuntu     # reboot, follow prompts to set username
-```
-
-Then in your WSL Ubuntu terminal (or any Linux/macOS terminal):
-
-```bash
-BACKUP=/mnt/c/OpenCentauri/backups/backup.bin            # Linux/macOS: just backup.bin
-LOOP=$(sudo losetup -fP --show "$BACKUP")
-sudo mkdir -p /mnt/cc2
-sudo mount -o ro ${LOOP}p7 /mnt/cc2                       # rootfsA (try p8 if empty)
-cat /mnt/cc2/opt/inst/firmware_version/versions.json
-sudo umount /mnt/cc2
-sudo mount -o ro ${LOOP}p11 /mnt/cc2
-cat /mnt/cc2/ELEGOO.txt
-sudo umount /mnt/cc2
-sudo losetup -d $LOOP
-```
-
-#### Windows GUI fallback — 7-Zip 23+
-
-[7-Zip 23 and later](https://www.7-zip.org/) can open GPT-partitioned disk images.
-
-1. Right-click `C:\OpenCentauri\backups\backup.bin` → **7-Zip → Open archive**.
-2. You'll see a list of partitions (`0.img`, `1.img`, …). Open the 7th partition (rootfsA
-   squashfs) — 7-Zip can also browse squashfs.
-3. Navigate to `opt/inst/firmware_version/versions.json` — double-click to view in Notepad.
-4. Back out, open the 11th partition (FAT16), view `ELEGOO.txt`.
-
-Expect a JSON with `ota_version` (the version that shows on the printer's About screen) and a
-single line:
-
-```
-F01XAJI0Y6DPBHS,afqofpva,3zmf8mdd4v30t9nt3w5uzbikcidkwnnh
-```
-
-If both look real, the backup is good.
-
----
-
-## 8. Restore
-
-!!! danger "This overwrites the printer's eMMC"
-    Make a fresh backup first if there's anything to lose. Don't interrupt the write.
-
-### Prep
-
-- **Stick A:** FAT32 with `restore_cc2.scr` (same stick as §6 is fine).
-- **Stick B:** Use Balena Etcher → **Flash from file** → `backup.bin` → target the USB stick →
-  **Flash!** *(If the latest Etcher errors, use
-  [v1.18.11](https://github.com/balena-io/etcher/releases/tag/v1.18.11).)*
-
-### Run
-
-If you're at `=>` from §6/§7, continue. Otherwise re-do §4 then §5.
-
-With **Stick A** plugged in:
-
-```
-usb reset
-usb dev 0
-fatload usb 0:1 42000000 restore_cc2.scr
-```
-
-!!! tip
-    Skip `usb reset` if the stick was already plugged in when U-Boot booted and a storage device
-    showed in the banner. If `usb reset` finds no storage, unplug/replug and retry until it does.
-
-Pull **Stick A**, plug in **Stick B**:
-
-```
-usb reset
-usb dev 0
-source 42000000
-```
-
-Wait 15–30 min.
-
-### Boot
-
-1. Unplug mains.
-2. Remove Stick B and disconnect J6.
-3. Power back on normally.
-
-Confirm via **Settings → About / Version**; it should match the `ota_version` from §7.
-
----
-
-## 8A. Update the SN (if you restored someone else's backup)
-
-!!! note
-    Skip this section if you restored a backup from the same physical printer.
-
-The backup carries the original machine's SN in `/mnt/private/ELEGOO.txt`. **OTA updates and
-basic printing still work** with a "wrong" SN — the printer doesn't gate functionality on cloud
-auth. What you'll see broken is the **cloud-side AI features** (spaghetti / foreign-object
-detection, AI camera analysis): the printer can't authenticate to Elegoo's inference servers, so
-you'll get error popups about failed detection. That's expected with an unmatched SN and **safe
-to ignore** if you don't need those features.
-
-If you do want full functionality, overwrite `ELEGOO.txt` with your printer's real values. SSH
-into the printer as root:
-
-```sh
-mount -o remount,rw /mnt/private
-printf '<YOUR_SN>,<YOUR_SHORT_CODE>,<YOUR_LONG_KEY>' > /mnt/private/ELEGOO.txt
-cat /mnt/private/ELEGOO.txt
-mount -o remount,ro /mnt/private
-```
-
-Reboot afterward.
-
-!!! warning "All three fields must match"
-    The sticker on the back of the printer only has the SN; `short_code` and `long_key` live
-    only on the eMMC. Recovery sources, in order of preference:
-
-    1. The standalone `ELEGOO.txt` you grabbed over SSH in §6 (recommended pre-backup step).
-    2. `cat /mnt/cc2/ELEGOO.txt` from your verified backup (§7).
-    3. Contact Elegoo support — they may be able to re-issue the triplet given the SN.
-
----
-
-## 9. Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| **"No FEL device found"** | Different USB port (no hubs). Windows: Zadig not bound to `1F3A:EFE8`. Retry SW2 + SW1. |
-| **Hello-world prints nothing on UART** | Check 115200 8N1. Swap TX/RX. Verify GND tied. Confirm you're on J20 (left of the cluster), not the DSP header. |
-| **`sunxi-fel uboot` returns "bulk send error -7" or "FEL device not found"** | Re-do hello-world first; the SPL hangs without UART. |
-| **`fatload usb 0:1 ...` "no such partition"** | Run `usb part`, use the partition number it shows. |
-| **After swapping sticks, U-Boot still sees the old one** | Run `usb reset` again after the swap. |
-| **`source` runs but exits instantly** | You downloaded the rendered GitHub page instead of the raw `.scr` blob. Get the raw file. |
-| **Windows offers to "format" Stick B after backup, or it shows as 0 bytes** | Expected — the stick is a raw eMMC dump with no Windows filesystem. **Click Cancel**, then pull the image off with `diskcpy.exe` (§6). |
-| **`diskcpy.exe` errors with "access denied"** | Run PowerShell as Administrator. Raw physical-drive access requires admin. |
-| **`Get-CimInstance` doesn't show my USB stick** | Re-plug and wait a few seconds. Try a different USB port (avoid hubs). |
-| **Etcher refuses to flash for restore — "drive too small"** | Use a 16 GB stick. |
-| **Printer doesn't boot after restore** | Wrong-model backup (must be CC2), or truncated. Verify size = 7,837,581,312 bytes. |
-
----
-
-## 10. References
-
-- **OpenCentauri** — [docs](https://docs.opencentauri.cc) · [GitHub](https://github.com/OpenCentauri) · [Discord](https://discord.gg/t6Cft3wNJ3)
-- **cc-fw-tools** — [repo](https://github.com/OpenCentauri/cc-fw-tools) · [EMMC_BACKUP.md](https://github.com/OpenCentauri/cc-fw-tools/blob/main/docs/EMMC_BACKUP.md) · [EMMC_RESTORE.md](https://github.com/OpenCentauri/cc-fw-tools/blob/main/docs/EMMC_RESTORE.md)
-- **Tools** — [sunxi-fel.exe (BigTreeTech build, in cc-fw-tools)](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/sunxi-fel.exe) · [sunxi-tools (source)](https://github.com/linux-sunxi/sunxi-tools) · [BigTreeTech sunxi-tools (upstream)](https://github.com/bigtreetech/sunxi-tools) · [Zadig](https://zadig.akeo.ie) · [Balena Etcher](https://etcher.balena.io/) · [Etcher v1.18.11 (fallback)](https://github.com/balena-io/etcher/releases/tag/v1.18.11) · [`diskcpy`](https://github.com/suchmememanyskill/diskcpy/releases)
-- **CC2 files (cc-fw-tools)**
-    - [`u-boot-sunxi-with-spl-cc2.bin`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/u-boot-sunxi-with-spl-cc2.bin) — CC2 U-Boot build
-    - [`backup_cc2.scr`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/backup_cc2.scr) · [`restore_cc2.scr`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/restore_cc2.scr) — CC2 backup/restore scripts (mmc dev 1)
-    - [`uart0-helloworld-sdboot.sunxi`](https://github.com/OpenCentauri/cc-fw-tools/blob/main/extra-stuff/emmc/uart0-helloworld-sdboot.sunxi) — shared CC1/CC2
+- [CC2 Mainboard Pinout](mainboard.md) — 24V input, UART0/DSP, and FEL header pin details
+- [FEL Mode](../../software/FEL-mode.md) — booting into FEL mode and installing drivers
+- [CC2 eMMC Backup / Restore](https://github.com/OpenCentauri/cc-fw-tools/blob/main/docs/EMMC_BACKUP_RESTORE_CC2.md) — full step-by-step backup and restore procedure (cc-fw-tools)
