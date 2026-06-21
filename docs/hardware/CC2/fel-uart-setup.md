@@ -79,7 +79,7 @@ Wire the FEL header to the USB-A plug as follows:
 !!! warning
     **DP and DM are swapped compared to a standard USB-A pinout.** Don't build a straight-through cable — follow the table above. See the **FEL** tab on the [mainboard pinout](mainboard.md) page.
 
-![CC2 FEL header (J6)](assets/J6_header.jpg){ width="500" }
+![CC2 FEL header (J6)](assets/J6_header.jpg){ width="320" }
 
 ### 4. Entering FEL Mode
 
